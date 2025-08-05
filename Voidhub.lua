@@ -1,94 +1,288 @@
---[[ 
-	VOID HUB V3 – Custom GUI
-	Made by LUA Programming GOD 😤
-	YouTube: @voidscripts-r3u
---]]
-
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Stats = game:GetService("Stats")
+local GuiService = game:GetService("GuiService")
+local StarterGui = game:GetService("StarterGui")
 local CoreGui = game:GetService("CoreGui")
 
 local lp = Players.LocalPlayer
+local camlockOn, speedOn, hitboxOn = false, false, false
+local speedValue, hitboxSize = 16, 5
+local target = nil
+local prediction = 0.13
+local originalSizes = {}
 
--- 🧼 CLEANUP
-for _, v in ipairs({"VoidHub", "VoidStats", "VoidJump"}) do
-	if CoreGui:FindFirstChild(v) then CoreGui[v]:Destroy() end
-end
+local killLines = {
+	"You fucking clapped that clown 💀",
+	"Void Scripts certified wipe 😈",
+	"Another idiot down. Good shit.",
+	"You’re built different as fuck 🔥",
+	"That bitch didn’t stand a chance 🤡",
+	"Void Scripts on top. One more deleted 💥",
+	"Fuck around, find out. They found out.",
+	"Made that dummy uninstall 🔪",
+	"Headshot from Void Scripts with love 💀",
+}
 
--- 🧱 BASIC UI SETUP
+-- UI
 local gui = Instance.new("ScreenGui", CoreGui)
-gui.Name = "VoidHub"
-gui.IgnoreGuiInset = true
-gui.ResetOnSpawn = false
+gui.Name = "VoidHubUI"
 
--- 🟥 TOGGLE BUTTON
-local toggleBtn = Instance.new("ImageButton", gui)
-toggleBtn.Name = "ToggleButton"
-toggleBtn.Size = UDim2.new(0, 60, 0, 60)
-toggleBtn.Position = UDim2.new(0, 15, 0, 15)
-toggleBtn.Image = "rbxassetid://121584081125594"
-toggleBtn.BackgroundTransparency = 1
-local dragging, dragInput, dragStart, startPos
+local buttonColor = Color3.fromRGB(40, 40, 40)
+local textColor = Color3.new(1, 1, 1)
+local fontType = Enum.Font.Gotham
 
--- ✅ Make it draggable
-local function makeDraggable(btn)
-	btn.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			dragStart = input.Position
-			startPos = btn.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then dragging = false end
-			end)
+-- Click Sound
+local clickSound = Instance.new("Sound", gui)
+clickSound.SoundId = "rbxassetid://12222005"
+clickSound.Volume = 1
+
+-- Toggle Button
+local toggle = Instance.new("TextButton", gui)
+toggle.Size = UDim2.new(0, 30, 0, 30)
+toggle.Position = UDim2.new(0, 10, 0.5, -80)
+toggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+toggle.Text = "+"
+toggle.Font = fontType
+toggle.TextColor3 = textColor
+toggle.TextScaled = true
+toggle.Draggable = true
+toggle.Active = true
+
+-- Menu
+local menu = Instance.new("Frame", gui)
+menu.Size = UDim2.new(0, 160, 0, 280)
+menu.Position = UDim2.new(0, 50, 0.5, -100)
+menu.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+menu.BackgroundTransparency = 0.1
+menu.Visible = false
+menu.Active = true
+menu.Draggable = true
+Instance.new("UICorner", menu).CornerRadius = UDim.new(0, 8)
+
+toggle.MouseButton1Click:Connect(function()
+	clickSound:Play()
+	menu.Visible = not menu.Visible
+	toggle.Text = menu.Visible and "-" or "+"
+end)
+
+-- Speed Button
+local speedBtn = Instance.new("TextButton", menu)
+speedBtn.Size = UDim2.new(1, -20, 0, 30)
+speedBtn.Position = UDim2.new(0, 10, 0, 10)
+speedBtn.Text = "Speed: OFF"
+speedBtn.BackgroundColor3 = buttonColor
+speedBtn.TextColor3 = textColor
+speedBtn.TextScaled = true
+speedBtn.Font = fontType
+
+local speedBox = Instance.new("TextBox", menu)
+speedBox.Size = UDim2.new(1, -20, 0, 30)
+speedBox.Position = UDim2.new(0, 10, 0, 50)
+speedBox.Text = tostring(speedValue)
+speedBox.PlaceholderText = "Walkspeed (15 - 500)"
+speedBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+speedBox.TextColor3 = textColor
+speedBox.TextScaled = true
+speedBox.ClearTextOnFocus = false
+speedBox.Font = fontType
+
+-- Redz Hub Button
+local execBtn = Instance.new("TextButton", menu)
+execBtn.Size = UDim2.new(1, -20, 0, 30)
+execBtn.Position = UDim2.new(0, 10, 0, 90)
+execBtn.Text = "Launch Redz Hub"
+execBtn.BackgroundColor3 = Color3.fromRGB(80, 30, 30)
+execBtn.TextColor3 = textColor
+execBtn.TextScaled = true
+execBtn.Font = fontType
+
+-- Hitbox Button
+local hitboxBtn = Instance.new("TextButton", menu)
+hitboxBtn.Size = UDim2.new(1, -20, 0, 30)
+hitboxBtn.Position = UDim2.new(0, 10, 0, 130)
+hitboxBtn.Text = "Hitbox: OFF"
+hitboxBtn.BackgroundColor3 = buttonColor
+hitboxBtn.TextColor3 = textColor
+hitboxBtn.TextScaled = true
+hitboxBtn.Font = fontType
+
+local hitboxBox = Instance.new("TextBox", menu)
+hitboxBox.Size = UDim2.new(1, -20, 0, 30)
+hitboxBox.Position = UDim2.new(0, 10, 0, 170)
+hitboxBox.Text = tostring(hitboxSize)
+hitboxBox.PlaceholderText = "Size (1 - 400)"
+hitboxBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+hitboxBox.TextColor3 = textColor
+hitboxBox.TextScaled = true
+hitboxBox.ClearTextOnFocus = false
+hitboxBox.Font = fontType
+
+-- VoidCam Button
+local camBtn = Instance.new("TextButton", gui)
+camBtn.Size = UDim2.new(0, 140, 0, 40)
+camBtn.Position = UDim2.new(0, 10, 0.5, 40)
+camBtn.Text = "VoidCam: OFF"
+camBtn.BackgroundColor3 = buttonColor
+camBtn.TextColor3 = textColor
+camBtn.TextScaled = true
+camBtn.Font = fontType
+camBtn.Draggable = true
+camBtn.Active = true
+Instance.new("UICorner", camBtn)
+
+-- Functions
+speedBtn.MouseButton1Click:Connect(function()
+	clickSound:Play()
+	speedOn = not speedOn
+	speedBtn.Text = speedOn and "Speed: ON" or "Speed: OFF"
+	if not speedOn and lp.Character and lp.Character:FindFirstChild("Humanoid") then
+		lp.Character.Humanoid.WalkSpeed = 16
+	end
+end)
+
+speedBox.FocusLost:Connect(function()
+	local val = tonumber(speedBox.Text)
+	if val and val >= 15 and val <= 500 then
+		speedValue = val
+	else
+		speedBox.Text = tostring(speedValue)
+	end
+end)
+
+execBtn.MouseButton1Click:Connect(function()
+	clickSound:Play()
+	pcall(function()
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/tlredz/Scripts/refs/heads/main/main.luau"))()
+	end)
+end)
+
+local function restoreHitboxes()
+	for _, p in pairs(Players:GetPlayers()) do
+		if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			local hrp = p.Character.HumanoidRootPart
+			if originalSizes[p] then
+				hrp.Size = originalSizes[p]
+				hrp.Transparency = 1
+				hrp.Material = Enum.Material.Plastic
+				hrp.CanCollide = true
+				originalSizes[p] = nil
+			end
 		end
-	end)
-	btn.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
-	end)
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			btn.Position = UDim2.new(0, math.clamp(startPos.X.Offset + delta.X, 0, gui.AbsoluteSize.X - btn.AbsoluteSize.X), 0, math.clamp(startPos.Y.Offset + delta.Y, 0, gui.AbsoluteSize.Y - btn.AbsoluteSize.Y))
+	end
+end
+
+hitboxBtn.MouseButton1Click:Connect(function()
+	clickSound:Play()
+	hitboxOn = not hitboxOn
+	hitboxBtn.Text = hitboxOn and "Hitbox: ON" or "Hitbox: OFF"
+	if not hitboxOn then
+		restoreHitboxes()
+	end
+end)
+
+hitboxBox.FocusLost:Connect(function()
+	local val = tonumber(hitboxBox.Text)
+	if val and val >= 1 and val <= 400 then
+		hitboxSize = val
+	else
+		hitboxBox.Text = tostring(hitboxSize)
+	end
+end)
+
+camBtn.MouseButton1Click:Connect(function()
+	clickSound:Play()
+	camlockOn = not camlockOn
+	camBtn.Text = camlockOn and "VoidCam: ON" or "VoidCam: OFF"
+	if camlockOn then
+		local closest = nil
+		local shortest = math.huge
+		local center = Vector2.new(GuiService:GetScreenResolution().X / 2, GuiService:GetScreenResolution().Y / 2)
+		for _, p in pairs(Players:GetPlayers()) do
+			if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+				local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+				if onScreen then
+					local dist = (center - Vector2.new(pos.X, pos.Y)).Magnitude
+					if dist < shortest then
+						shortest = dist
+						closest = p
+					end
+				end
+			end
 		end
+		target = closest
+		if target then
+			StarterGui:SetCore("SendNotification", {
+				Title = "VOIDCAM LOCKED 🎯",
+				Text = "Target: " .. target.DisplayName,
+				Duration = 3
+			})
+		end
+	end
+end)
+
+-- KILL Achievements
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function(char)
+		char:WaitForChild("Humanoid").Died:Connect(function()
+			if plr ~= lp then return end
+			local msg = killLines[math.random(1, #killLines)]
+			StarterGui:SetCore("SendNotification", {
+				Title = "VOID SCRIPTS 🧱",
+				Text = msg,
+				Duration = 5
+			})
+		end)
 	end)
-end
-makeDraggable(toggleBtn)
+end)
 
--- 🟫 HUB FRAME
-local hub = Instance.new("Frame", gui)
-hub.Size = UDim2.new(0, 280, 0, 300)
-hub.Position = UDim2.new(0, toggleBtn.Position.X.Offset + 70, 0, toggleBtn.Position.Y.Offset)
-hub.BackgroundColor3 = Color3.fromRGB(30,30,35)
-hub.Visible = false
-hub.Active = true
-hub.Draggable = true
-Instance.new("UICorner", hub)
+-- Clipboard Promo
+task.spawn(function()
+	while true do
+		task.wait(600)
+		pcall(function()
+			setclipboard("https://youtube.com/@voidscripts-r3u?si=NcLm_SCf6ogHNzVI")
+			StarterGui:SetCore("SendNotification", {
+				Title = "VOID SCRIPTS 🔗",
+				Text = "Subscribe to Void Scripts 💀\n(link copied 📋)",
+				Duration = 5
+			})
+		end)
+	end
+end)
 
-local layout = Instance.new("UIListLayout", hub)
-layout.Padding = UDim.new(0, 8)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+	if camlockOn and target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+		local hrp = target.Character.HumanoidRootPart
+		workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, hrp.Position + hrp.Velocity * prediction)
+	end
 
--- 🔘 Button Maker
-local function makeButton(text, emoji, callback)
-	local btn = Instance.new("TextButton", hub)
-	btn.Size = UDim2.new(1, -20, 0, 36)
-	btn.Text = emoji.." "..text
-	btn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-	btn.TextColor3 = Color3.new(1,1,1)
-	btn.Font = Enum.Font.Gotham
-	btn.TextSize = 14
-	btn.AutoButtonColor = false
-	Instance.new("UICorner", btn)
-	btn.MouseButton1Click:Connect(callback)
-end
+	if speedOn and lp.Character and lp.Character:FindFirstChild("Humanoid") then
+		lp.Character.Humanoid.WalkSpeed = speedValue
+	end
 
--- 🏃 Speed Hack
-local speedEnabled = false
-local currentSpeed = 16
-makeButton("Speed Hack", "🏃", function()
+	if hitboxOn then
+		for _, p in pairs(Players:GetPlayers()) do
+			if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+				local hrp = p.Character.HumanoidRootPart
+				if not originalSizes[p] then
+					originalSizes[p] = hrp.Size
+				end
+				hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+				hrp.Transparency = 0.6
+				hrp.Material = Enum.Material.ForceField
+				hrp.CanCollide = false
+			end
+		end
+	end
+end)
+
+-- Final Welcome Notif
+StarterGui:SetCore("SendNotification", {
+	Title = "Void Scripts 🧱",
+	Text = "Loaded successfully, you sick fuck 💀",
+	Duration = 5
+})makeButton("Speed Hack", "🏃", function()
 	speedEnabled = not speedEnabled
 end)
 local speedInput = Instance.new("TextBox", hub)
