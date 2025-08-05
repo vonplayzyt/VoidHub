@@ -1,94 +1,211 @@
--- [[ VOID SCRIPTS – MODULAR UI SYSTEM ]] --
+-- VOID UI SYSTEM (LEGIT TOOLKIT VERSION) 🔧
 
--- Services
+--// SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
-local SoundService = game:GetService("SoundService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Stats = game:GetService("Stats")
 local CoreGui = game:GetService("CoreGui")
+local SoundService = game:GetService("SoundService")
 
 local lp = Players.LocalPlayer
-local speedEnabled, hitboxEnabled, camlockEnabled = false, false, false
-local speedValue, hitboxSize = 16, 5
-local camlockTarget = nil
 
--- Destroy previous UIs
-for _, name in ipairs({"Void_UI_Speed", "Void_UI_Hitbox", "Void_UI_Camlock", "Void_UI_Redz"}) do
-	local ui = CoreGui:FindFirstChild(name)
-	if ui then ui:Destroy() end
+--// CLEANUP
+for _, uiName in ipairs({"VoidUI_Main", "VoidUI_Stats"}) do
+    if CoreGui:FindFirstChild(uiName) then
+        CoreGui[uiName]:Destroy()
+    end
 end
 
--- Sound setup
+--// SOUND
 local clickSound = Instance.new("Sound", SoundService)
 clickSound.SoundId = "rbxassetid://12221967"
 clickSound.Volume = 0.5
-clickSound.Name = "VoidClick"
+clickSound.Name = "UIButtonClick"
 
-local function playClick()
+--// UI BASE
+local gui = Instance.new("ScreenGui")
+gui.Name = "VoidUI_Main"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = CoreGui
+
+--// TOGGLE BUTTON
+local toggleBtn = Instance.new("ImageButton", gui)
+toggleBtn.Name = "Toggle"
+toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+toggleBtn.Position = UDim2.new(0, 20, 0, 100)
+toggleBtn.Image = "rbxassetid://121584081125594" -- your custom toggle icon
+toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggleBtn.BorderSizePixel = 0
+toggleBtn.Active = true
+toggleBtn.Draggable = true
+Instance.new("UICorner", toggleBtn)
+
+--// MAIN HUB
+local hub = Instance.new("Frame", gui)
+hub.Name = "MainHub"
+hub.Size = UDim2.new(0, 360, 0, 400)
+hub.Position = UDim2.new(0, 90, 0, 100)
+hub.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+hub.Visible = false
+hub.Active = true
+hub.Draggable = true
+Instance.new("UICorner", hub)
+
+--// TOP BAR
+local topBar = Instance.new("Frame", hub)
+topBar.Size = UDim2.new(1, 0, 0, 40)
+topBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+topBar.BorderSizePixel = 0
+Instance.new("UICorner", topBar)
+
+--// TABS
+local tabs = {"Combat", "Visual", "Utility"}
+local tabFrames = {}
+local tabButtons = {}
+
+local tabBar = Instance.new("Frame", hub)
+tabBar.Position = UDim2.new(0, 0, 0, 40)
+tabBar.Size = UDim2.new(1, 0, 0, 30)
+tabBar.BackgroundTransparency = 1
+local layout = Instance.new("UIListLayout", tabBar)
+layout.FillDirection = Enum.FillDirection.Horizontal
+layout.Padding = UDim.new(0, 4)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- PAGE HOLDER
+local pageHolder = Instance.new("Frame", hub)
+pageHolder.Position = UDim2.new(0, 0, 0, 70)
+pageHolder.Size = UDim2.new(1, 0, 1, -70)
+pageHolder.BackgroundTransparency = 1
+
+local pageLayout = Instance.new("UIPageLayout", pageHolder)
+pageLayout.FillDirection = Enum.FillDirection.Horizontal
+pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+pageLayout.EasingDirection = Enum.EasingDirection.Out
+pageLayout.EasingStyle = Enum.EasingStyle.Quad
+pageLayout.TweenTime = 0.25
+
+-- CREATE TABS
+for _, name in ipairs(tabs) do
+	local tabBtn = Instance.new("TextButton", tabBar)
+	tabBtn.Size = UDim2.new(0, 100, 1, 0)
+	tabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	tabBtn.TextColor3 = Color3.new(1, 1, 1)
+	tabBtn.Font = Enum.Font.Gotham
+	tabBtn.Text = name
+	tabBtn.TextSize = 14
+	tabBtn.AutoButtonColor = false
+	Instance.new("UICorner", tabBtn)
+
+	local page = Instance.new("Frame", pageHolder)
+	page.Size = UDim2.new(1, 0, 1, 0)
+	page.BackgroundTransparency = 1
+	local list = Instance.new("UIListLayout", page)
+	list.Padding = UDim.new(0, 8)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	local pad = Instance.new("UIPadding", page)
+	pad.PaddingTop = UDim.new(0, 10)
+	pad.PaddingLeft = UDim.new(0, 10)
+	pad.PaddingRight = UDim.new(0, 10)
+
+	tabBtn.MouseButton1Click:Connect(function()
+		clickSound:Play()
+		pageLayout:JumpTo(page)
+	end)
+
+	tabButtons[name] = tabBtn
+	tabFrames[name] = page
+end
+
+-- MODERN BUTTON FUNCTION
+local function createButton(tabName, text, emoji, callback)
+	local btn = Instance.new("TextButton", tabFrames[tabName])
+	btn.Size = UDim2.new(1, -10, 0, 36)
+	btn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+	btn.Text = emoji .. "  " .. text
+	btn.TextColor3 = Color3.new(1,1,1)
+	btn.Font = Enum.Font.Gotham
+	btn.TextSize = 14
+	btn.AutoButtonColor = false
+	Instance.new("UICorner", btn)
+
+	btn.MouseButton1Click:Connect(function()
+		clickSound:Play()
+		callback()
+	end)
+end
+
+--// COMBAT EXAMPLE
+createButton("Combat", "VoidCam (Demo)", "🎯", function()
+	warn("VoidCam activated.")
+end)
+
+--// VISUAL EXAMPLE
+createButton("Visual", "Toggle Light Theme", "💡", function()
+	hub.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+end)
+
+--// UTILITY EXAMPLE
+createButton("Utility", "Print Hello", "🔧", function()
+	print("Hello from Void Utility!")
+end)
+
+--// FPS + PING STATS
+local statsUI = Instance.new("ScreenGui", CoreGui)
+statsUI.Name = "VoidUI_Stats"
+
+local statsFrame = Instance.new("Frame", statsUI)
+statsFrame.Size = UDim2.new(0, 160, 0, 45)
+statsFrame.Position = UDim2.new(1, -170, 1, -60)
+statsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+statsFrame.BorderSizePixel = 0
+Instance.new("UICorner", statsFrame)
+
+local fpsLabel = Instance.new("TextLabel", statsFrame)
+fpsLabel.Size = UDim2.new(1, 0, 0.5, 0)
+fpsLabel.Text = "FPS: 0"
+fpsLabel.TextColor3 = Color3.new(1,1,1)
+fpsLabel.Font = Enum.Font.GothamBold
+fpsLabel.TextSize = 14
+fpsLabel.BackgroundTransparency = 1
+
+local pingLabel = Instance.new("TextLabel", statsFrame)
+pingLabel.Position = UDim2.new(0, 0, 0.5, 0)
+pingLabel.Size = UDim2.new(1, 0, 0.5, 0)
+pingLabel.Text = "Ping: --"
+pingLabel.TextColor3 = Color3.new(1,1,1)
+pingLabel.Font = Enum.Font.GothamBold
+pingLabel.TextSize = 14
+pingLabel.BackgroundTransparency = 1
+
+--// STATS UPDATE LOOP
+local last = tick()
+RunService.RenderStepped:Connect(function()
+	local now = tick()
+	local fps = math.floor(1 / (now - last))
+	last = now
+	local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
+	fpsLabel.Text = "FPS: " .. tostring(fps)
+	pingLabel.Text = "Ping: " .. ping
+end)
+
+--// TOGGLE HUB
+toggleBtn.MouseButton1Click:Connect(function()
 	clickSound:Play()
-end
-
-local function createToggleUI(name, labelText, pos)
-	local gui = Instance.new("ScreenGui", CoreGui)
-	gui.Name = name
-
-	local frame = Instance.new("Frame", gui)
-	frame.Size = UDim2.new(0, 180, 0, 60)
-	frame.Position = pos
-	frame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-	frame.Active = true
-	frame.Draggable = true
-
-	local corner = Instance.new("UICorner", frame)
-	corner.CornerRadius = UDim.new(0, 6)
-
-	local button = Instance.new("TextButton", frame)
-	button.Size = UDim2.new(1, -20, 0, 40)
-	button.Position = UDim2.new(0, 10, 0, 10)
-	button.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-	button.Text = labelText
-	button.Font = Enum.Font.GothamBold
-	button.TextColor3 = Color3.new(1, 1, 1)
-	button.TextSize = 14
-
-	Instance.new("UICorner", button)
-
-	return button, gui
-end
-
--- SPEED UI
-local speedBtn, speedGui = createToggleUI("Void_UI_Speed", "Speed: OFF", UDim2.new(0, 20, 0, 100))
-local speedBox = Instance.new("TextBox", speedGui)
-speedBox.Size = UDim2.new(0, 100, 0, 30)
-speedBox.Position = UDim2.new(0, 20, 0, 70)
-speedBox.Text = "16"
-speedBox.PlaceholderText = "Speed (max 500)"
-speedBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-speedBox.TextColor3 = Color3.new(1, 1, 1)
-speedBox.Font = Enum.Font.Gotham
-speedBox.TextSize = 14
-speedBox.ClearTextOnFocus = true
-Instance.new("UICorner", speedBox)
-
-speedBtn.MouseButton1Click:Connect(function()
-	speedEnabled = not speedEnabled
-	playClick()
-	speedBtn.Text = speedEnabled and "Speed: ON" or "Speed: OFF"
+	hub.Visible = not hub.Visible
 end)
 
-speedBox.FocusLost:Connect(function()
-	local val = tonumber(speedBox.Text)
-	if val and val >= 16 and val <= 500 then
-		speedValue = val
-	else
-		speedBox.Text = tostring(speedValue)
-	end
-end)
-
--- HITBOX UI
-local hitboxBtn, hitboxGui = createToggleUI("Void_UI_Hitbox", "Hitbox: OFF", UDim2.new(0, 220, 0, 100))
-local hitboxBox = Instance.new("TextBox", hitboxGui)
-hitboxBox.Size = UDim2.new(0, 100, 0, 30)
+-- FINAL WELCOME
+pcall(function()
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "Void UI Loaded 🧱",
+		Text = "UI Toolkit Ready",
+		Duration = 4
+	})
+end)hitboxBox.Size = UDim2.new(0, 100, 0, 30)
 hitboxBox.Position = UDim2.new(0, 20, 0, 70)
 hitboxBox.Text = "5"
 hitboxBox.PlaceholderText = "Size (1-100)"
