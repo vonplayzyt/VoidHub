@@ -243,7 +243,7 @@ camBtn.MouseButton1Click:Connect(function()
 		target = closest
 		if target then
 			StarterGui:SetCore("SendNotification", {
-				Title = "VOIDCAM LOCKED 🎯",
+				Title = "VOIDCAM LOCKED 🤓☝",
 				Text = "Target: " .. target.DisplayName,
 				Duration = 3
 			})
@@ -258,7 +258,7 @@ Players.PlayerAdded:Connect(function(plr)
 			if plr ~= lp then return end
 			local msg = killLines[math.random(1, #killLines)]
 			StarterGui:SetCore("SendNotification", {
-				Title = "VOID SCRIPTS 🧱",
+				Title = "VOID SCRIPTS ⚒",
 				Text = msg,
 				Duration = 5
 			})
@@ -310,7 +310,7 @@ end)
 
 -- Final Welcome Notif
 StarterGui:SetCore("SendNotification", {
-	Title = "Void Scripts 🧱",
+	Title = "Void Scripts 😎",
 	Text = "Loaded successfully, you sick fuck 💀",
 	Duration = 5
 })speedBtn.TextScaled = true
