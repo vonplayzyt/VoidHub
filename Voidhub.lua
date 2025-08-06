@@ -43,12 +43,12 @@ voidCamOnSound.SoundId = "rbxassetid://103240623182313"
 voidCamOnSound.Volume = 1
 
 local voidCamOffSound = Instance.new("Sound", gui)
-voidCamOffSound.SoundId = "rbxassetid://115780308685053"
+voidCamOffSound.SoundId = "rbxassetid://117614974260388"
 voidCamOffSound.Volume = 1
 
 -- Script Executed Sound
 local startupSound = Instance.new("Sound", gui)
-startupSound.SoundId = "rbxassetid://117614974260388"
+startupSound.SoundId = "rbxassetid://115780308685053"
 startupSound.Volume = 1
 startupSound:Play()
 
