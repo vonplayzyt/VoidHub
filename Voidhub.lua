@@ -4,7 +4,7 @@
 
 -- ========== CONFIG ==========
 local PANEL_WIDTH  = 200 -- change this for panel width
-local PANEL_HEIGHT = 150 -- change this for panel height
+local PANEL_HEIGHT = 190 -- change this for panel height
 
 local VALID_KEYS = { "Sub2Centu", "Sub2VoidScripts" }
 local KEY_SITE = "https://voidcam.vercel.app"
