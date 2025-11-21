@@ -1,0 +1,977 @@
+-- Kavo V2
+-- Fortnite-style UI, responsive, animated, themeable, packed with components
+-- Author: Generated for you
+-- Paste into a LocalScript (StarterPlayerScripts or run in Studio)
+
+-- SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui") or nil
+
+-- CONFIG
+local LIB_NAME = "Kavo V2"
+local CONFIG_FILE = "KavoV2_Config.json"
+
+-- UTIL
+local function safeCall(f, ...)
+    local ok, res = pcall(f, ...)
+    if ok then return res end
+    return nil
+end
+
+local function tween(obj, props, t, style, dir)
+    style = style or Enum.EasingStyle.Quad
+    dir = dir or Enum.EasingDirection.Out
+    TweenService:Create(obj, TweenInfo.new(t or 0.18, style, dir), props):Play()
+end
+
+local function clamp(x,a,b) if x < a then return a elseif x > b then return b else return x end end
+local function isPC()
+    return not UserInputService.TouchEnabled
+end
+
+-- THEMES
+local themeStyles = {
+    Default = {
+        SchemeColor = Color3.fromRGB(78, 149, 255),
+        Background = Color3.fromRGB(12, 16, 26),
+        Header = Color3.fromRGB(16, 22, 36),
+        TextColor = Color3.fromRGB(240,240,240),
+        ElementColor = Color3.fromRGB(20, 26, 36),
+        Accent = Color3.fromRGB(150, 200, 255),
+        Glow = Color3.fromRGB(86, 124, 255)
+    },
+    Neon = {
+        SchemeColor = Color3.fromRGB(255, 75, 190),
+        Background = Color3.fromRGB(6,8,12),
+        Header = Color3.fromRGB(10,12,18),
+        TextColor = Color3.fromRGB(245,245,250),
+        ElementColor = Color3.fromRGB(12,16,22),
+        Accent = Color3.fromRGB(255,160,220),
+        Glow = Color3.fromRGB(255,75,190)
+    },
+    Rainbow = {
+        SchemeColor = Color3.fromHSV(0,0.8,0.9), -- will rotate
+        Background = Color3.fromRGB(8,8,12),
+        Header = Color3.fromRGB(12,12,18),
+        TextColor = Color3.fromRGB(245,245,245),
+        ElementColor = Color3.fromRGB(16,16,22),
+        Accent = Color3.fromRGB(200,200,255),
+        Glow = Color3.fromRGB(255,170,90)
+    },
+    Light = {
+        SchemeColor = Color3.fromRGB(90, 130, 255),
+        Background = Color3.fromRGB(240,240,245),
+        Header = Color3.fromRGB(220,220,230),
+        TextColor = Color3.fromRGB(20,20,26),
+        ElementColor = Color3.fromRGB(245,245,250),
+        Accent = Color3.fromRGB(100,140,255),
+        Glow = Color3.fromRGB(120,160,255)
+    }
+}
+
+-- STATE
+local Kavo = {}
+local theme = themeStyles.Default
+local settings = {}
+local trackedProps = {} -- list of {inst, prop, key} for centralized updates
+
+-- FILE SAVE/LOAD (uses writefile/readfile if available)
+local function saveSettings()
+    local ok, json = pcall(function() return HttpService:JSONEncode(settings) end)
+    if ok then
+        pcall(function() writefile(CONFIG_FILE, json) end)
+    end
+end
+local function loadSettings()
+    local ok, data = pcall(function() return readfile(CONFIG_FILE) end)
+    if ok and data then
+        local suc, tbl = pcall(function() return HttpService:JSONDecode(data) end)
+        if suc and type(tbl) == "table" then
+            settings = tbl
+            return
+        end
+    end
+    settings = {}
+end
+loadSettings()
+
+-- SCREENGUI (create or reuse)
+local screenGui = CoreGui:FindFirstChild(LIB_NAME)
+if screenGui then screenGui:Destroy() end
+screenGui = Instance.new("ScreenGui")
+screenGui.Name = LIB_NAME
+screenGui.ResetOnSpawn = false
+screenGui.Parent = CoreGui
+
+-- UTILITY: track GUI properties for theme updates
+function Kavo.Track(inst, prop, key)
+    trackedProps[#trackedProps+1] = {inst = inst, prop = prop, key = key}
+end
+
+-- CENTRALIZED RENDER UPDATE
+RunService.RenderStepped:Connect(function()
+    -- animate rainbow if selected
+    if settings.Theme == "Rainbow" or (theme == themeStyles.Rainbow) then
+        local hue = (tick() % 6) / 6
+        theme.SchemeColor = Color3.fromHSV(hue, 0.82, 0.94)
+        theme.Glow = theme.SchemeColor
+    end
+    for _, t in ipairs(trackedProps) do
+        if t.inst and t.inst.Parent and theme[t.key] then
+            pcall(function() t.inst[t.prop] = theme[t.key] end)
+        end
+    end
+end)
+
+-- LAYOUT SCALES (responsive)
+local function scaleUDim2(x,y)
+    -- produce scaled sizes based on viewport
+    local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280,720)
+    local base = math.clamp(viewport.X/1366, 0.6, 1.2)
+    return UDim2.new(x.Scale or 0, (x.Offset or 0)*base, y.Scale or 0, (y.Offset or 0)*base)
+end
+
+-- ROOT MAIN WINDOW
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.AnchorPoint = Vector2.new(0.5,0.5)
+main.Size = scaleUDim2(UDim2.new(0, 820,0, 520).X, UDim2.new(0, 820,0, 520).Y) -- we'll adjust inline
+main.Position = UDim2.new(0.5,0,0.5,0)
+main.BackgroundColor3 = theme.Background
+main.BorderSizePixel = 0
+main.Parent = screenGui
+Kavo.Track(main, "BackgroundColor3", "Background")
+
+local mainCorner = Instance.new("UICorner", main)
+mainCorner.CornerRadius = UDim.new(0,10)
+
+-- Header
+local header = Instance.new("Frame", main)
+header.Name = "Header"
+header.Size = UDim2.new(1,0,0,56)
+header.Position = UDim2.new(0,0,0,0)
+header.BackgroundColor3 = theme.Header
+header.BorderSizePixel = 0
+Kavo.Track(header, "BackgroundColor3", "Header")
+
+local headerCorner = Instance.new("UICorner", header)
+headerCorner.CornerRadius = UDim.new(0,10)
+
+local title = Instance.new("TextLabel", header)
+title.Text = "Kavo V2"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.Size = UDim2.new(0.4,0,1,0)
+title.BackgroundTransparency = 1
+title.TextColor3 = theme.TextColor
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Position = UDim2.new(0.03,0,0,0)
+Kavo.Track(title, "TextColor3", "TextColor")
+
+-- top tabs container (you chose top navigation)
+local tabsBar = Instance.new("Frame", header)
+tabsBar.Name = "TabsBar"
+tabsBar.BackgroundTransparency = 1
+tabsBar.Size = UDim2.new(0.6, -20, 1, 0)
+tabsBar.Position = UDim2.new(0.37, 0, 0, 0)
+
+local tabsLayout = Instance.new("UIListLayout", tabsBar)
+tabsLayout.FillDirection = Enum.FillDirection.Horizontal
+tabsLayout.Padding = UDim.new(0,8)
+tabsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+
+-- Close / Toggle button
+local closeBtn = Instance.new("ImageButton", header)
+closeBtn.Size = UDim2.new(0,38,0,38)
+closeBtn.Position = UDim2.new(0.95, -40, 0.5, -19)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Image = "rbxassetid://3926305904"
+closeBtn.ImageRectOffset = Vector2.new(764, 764)
+closeBtn.ImageRectSize = Vector2.new(36, 36)
+closeBtn.ImageColor3 = theme.SchemeColor
+Kavo.Track(closeBtn, "ImageColor3", "SchemeColor")
+
+-- Body / Page container
+local body = Instance.new("Frame", main)
+body.Name = "Body"
+body.Size = UDim2.new(1,-24,1,-76)
+body.Position = UDim2.new(0,12,0,64)
+body.BackgroundTransparency = 1
+
+local pagesFolder = Instance.new("Folder", body)
+pagesFolder.Name = "Pages"
+
+-- left info / status footer
+local footer = Instance.new("Frame", main)
+footer.Name = "Footer"
+footer.Size = UDim2.new(1,0,0,36)
+footer.Position = UDim2.new(0,0,1,-36)
+footer.BackgroundTransparency = 1
+local footerLabel = Instance.new("TextLabel", footer)
+footerLabel.Size = UDim2.new(1,-12,1,0)
+footerLabel.Position = UDim2.new(0,6,0,0)
+footerLabel.BackgroundTransparency = 1
+footerLabel.Font = Enum.Font.Gotham
+footerLabel.TextSize = 13
+footerLabel.Text = "Kavo V2 — Fortnite Edition • Responsive"
+footerLabel.TextColor3 = theme.TextColor
+footerLabel.TextXAlignment = Enum.TextXAlignment.Left
+Kavo.Track(footerLabel, "TextColor3", "TextColor")
+
+-- Notifications container (bottom-right of screen)
+local notifContainer = Instance.new("Frame", screenGui)
+notifContainer.Name = "Notifications"
+notifContainer.Size = UDim2.new(0, 320, 0, 260)
+notifContainer.Position = UDim2.new(1, -340, 1, -280)
+notifContainer.BackgroundTransparency = 1
+notifContainer.ZIndex = 1000
+
+-- helper: create page
+local Tabs = {}
+function Tabs:New(tabName, iconId)
+    tabName = tabName or "Tab"
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 140, 0, 36)
+    btn.BackgroundTransparency = 1
+    btn.AutoButtonColor = false
+    btn.Font = Enum.Font.GothamBold
+    btn.Text = "  "..tabName
+    btn.TextColor3 = theme.TextColor
+    btn.TextSize = 14
+    btn.ClipsDescendants = true
+
+    local pad = Instance.new("UIPadding", btn)
+    pad.PaddingLeft = UDim.new(0,6)
+
+    local icon = Instance.new("ImageLabel", btn)
+    icon.Size = UDim2.new(0,22,0,22)
+    icon.Position = UDim2.new(0,8,0.5,-11)
+    icon.BackgroundTransparency = 1
+    if iconId then icon.Image = iconId else icon.Image = "rbxassetid://4560909609" end
+    icon.ImageColor3 = theme.SchemeColor
+    Kavo.Track(icon, "ImageColor3", "SchemeColor")
+
+    local page = Instance.new("Frame", pagesFolder)
+    page.Name = tabName.."_Page"
+    page.Size = UDim2.new(1,0,1,0)
+    page.BackgroundTransparency = 1
+    page.Visible = false
+
+    local pageScroll = Instance.new("ScrollingFrame", page)
+    pageScroll.BackgroundTransparency = 1
+    pageScroll.Size = UDim2.new(1,0,1,0)
+    pageScroll.CanvasSize = UDim2.new(0,0,0,0)
+    pageScroll.ScrollBarThickness = 6
+    local layout = Instance.new("UIListLayout", pageScroll)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0,8)
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    -- add to tabs bar
+    btn.Parent = tabsBar
+
+    -- first tab auto-activate
+    local first = (#pagesFolder:GetChildren() == 0)
+    local function open()
+        for _,p in ipairs(pagesFolder:GetChildren()) do p.Visible = false end
+        page.Visible = true
+        -- animate active state on btn
+        for _,v in ipairs(tabsBar:GetChildren()) do
+            if v:IsA("TextButton") then
+                tween(v, {TextTransparency = 0}, 0.18)
+                v.BackgroundTransparency = 1
+            end
+        end
+        tween(btn, {TextTransparency = 0}, 0.18)
+        tween(icon, {ImageColor3 = theme.Glow}, 0.22, Enum.EasingStyle.Back)
+    end
+
+    btn.MouseButton1Click:Connect(function()
+        open()
+    end)
+
+    if first then
+        open()
+        btn.BackgroundTransparency = 0
+    end
+
+    local Sections = {}
+
+    function Sections:NewSection(titleText)
+        local sectionFrame = Instance.new("Frame", pageScroll)
+        sectionFrame.Size = UDim2.new(0, 760, 0, 36)
+        sectionFrame.BackgroundColor3 = theme.Header
+        sectionFrame.BorderSizePixel = 0
+        local sCorner = Instance.new("UICorner", sectionFrame)
+        sCorner.CornerRadius = UDim.new(0,8)
+
+        local lbl = Instance.new("TextLabel", sectionFrame)
+        lbl.Size = UDim2.new(1, -16, 1, 0)
+        lbl.Position = UDim2.new(0, 8, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Font = Enum.Font.GothamSemibold
+        lbl.TextSize = 14
+        lbl.Text = titleText
+        lbl.TextColor3 = theme.TextColor
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        -- content holder (collapsible)
+        local content = Instance.new("Frame", sectionFrame)
+        content.Name = "Content"
+        content.Position = UDim2.new(0,0,1,8)
+        content.Size = UDim2.new(1,0,0,0)
+        content.BackgroundTransparency = 1
+        local contentLayout = Instance.new("UIListLayout", content)
+        contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        contentLayout.Padding = UDim.new(0,8)
+
+        -- track colors
+        Kavo.Track(sectionFrame, "BackgroundColor3", "Header")
+        Kavo.Track(lbl, "TextColor3", "TextColor")
+
+        local elements = {}
+
+        -- Animated Button (with options)
+        function elements:NewButton(text, tip, opt, cb)
+            text = text or "Button"
+            local opt = opt or {}
+            local btn = Instance.new("TextButton", content)
+            btn.Size = UDim2.new(0, 720, 0, 36)
+            btn.BackgroundColor3 = theme.ElementColor
+            btn.BorderSizePixel = 0
+            btn.AutoButtonColor = false
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 14
+            btn.Text = "  "..text
+            btn.TextColor3 = theme.TextColor
+            local ic = Instance.new("ImageLabel", btn)
+            ic.Size = UDim2.new(0,20,0,20)
+            ic.Position = UDim2.new(0,8,0.5,-10)
+            ic.BackgroundTransparency = 1
+            ic.Image = "rbxassetid://4560909609"
+            ic.ImageColor3 = theme.SchemeColor
+            Kavo.Track(btn, "BackgroundColor3", "ElementColor")
+            Kavo.Track(ic, "ImageColor3", "SchemeColor")
+            -- ripple visual
+            local sample = Instance.new("ImageLabel")
+            sample.BackgroundTransparency = 1
+            sample.Image = "http://www.roblox.com/asset/?id=4560909609"
+            sample.ImageColor3 = theme.SchemeColor
+            local function runCallback()
+                pcall(cb)
+                -- little scale pulse
+                tween(btn, {BackgroundTransparency = 0.2}, 0.12)
+                wait(0.08)
+                tween(btn, {BackgroundTransparency = 0}, 0.12)
+            end
+
+            if opt.confirm then
+                -- confirmation overlay
+                btn.MouseButton1Click:Connect(function()
+                    local overlay = Instance.new("Frame", main)
+                    overlay.Size = UDim2.new(0,320,0,140)
+                    overlay.Position = UDim2.new(0.5,-160,0.5,-70)
+                    overlay.BackgroundColor3 = theme.Header
+                    overlay.ZIndex = 999
+                    overlay.BorderSizePixel = 0
+                    local ucor = Instance.new("UICorner", overlay); ucor.CornerRadius = UDim.new(0,8)
+                    local t = Instance.new("TextLabel", overlay)
+                    t.Size = UDim2.new(1,-20,0,46); t.Position = UDim2.new(0,10,0,10)
+                    t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBold; t.Text = (opt.confirmText or "Are you sure?"); t.TextColor3 = theme.TextColor; t.TextSize = 16
+                    local yes = Instance.new("TextButton", overlay)
+                    yes.Size = UDim2.new(0.45,-10,0,38); yes.Position = UDim2.new(0,10,1,-48)
+                    yes.Text = "Yes"; yes.Font = Enum.Font.GothamBold; yes.BackgroundColor3 = Color3.fromRGB(80,200,120); yes.TextColor3 = Color3.new(1,1,1)
+                    local no = Instance.new("TextButton", overlay)
+                    no.Size = UDim2.new(0.45,-10,0,38); no.Position = UDim2.new(1,-(10+ (0.45*(-10))),1,-48); no.AnchorPoint = Vector2.new(1,0)
+                    no.Text = "No"; no.Font = Enum.Font.GothamBold; no.BackgroundColor3 = Color3.fromRGB(220,80,80); no.TextColor3 = Color3.new(1,1,1)
+                    yes.MouseButton1Click:Connect(function() runCallback(); overlay:Destroy() end)
+                    no.MouseButton1Click:Connect(function() overlay:Destroy() end)
+                end)
+            elseif opt.holdToConfirm then
+                btn.MouseButton1Down:Connect(function()
+                    local hold = Instance.new("Frame", btn)
+                    hold.Size = UDim2.new(0,0,1,0); hold.Position = UDim2.new(0,0,0,0)
+                    hold.BackgroundColor3 = theme.SchemeColor
+                    tween(hold, {Size = UDim2.new(1,0,1,0)}, opt.holdTime or 1.1, Enum.EasingStyle.Linear)
+                    local released
+                    local conn
+                    conn = UserInputService.InputEnded:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            released = true
+                            conn:Disconnect()
+                        end
+                    end)
+                    wait(opt.holdTime or 1.1)
+                    if not released then runCallback() end
+                    if hold and hold.Parent then hold:Destroy() end
+                end)
+            else
+                btn.MouseButton1Click:Connect(function()
+                    runCallback()
+                end)
+            end
+
+            -- hover anim
+            btn.MouseEnter:Connect(function()
+                tween(btn, {BackgroundColor3 = theme.Glow}, 0.14, Enum.EasingStyle.Quad)
+            end)
+            btn.MouseLeave:Connect(function()
+                tween(btn, {BackgroundColor3 = theme.ElementColor}, 0.14, Enum.EasingStyle.Quad)
+            end)
+
+            return btn
+        end
+
+        -- Toggle (with check animation)
+        function elements:NewToggle(text, tip, cb)
+            text = text or "Toggle"
+            local btn = Instance.new("TextButton", content)
+            btn.Size = UDim2.new(0,720,0,36)
+            btn.BackgroundColor3 = theme.ElementColor
+            btn.BorderSizePixel = 0
+            btn.AutoButtonColor = false
+            btn.Font = Enum.Font.GothamBold
+            btn.Text = "  "..text
+            btn.TextColor3 = theme.TextColor
+
+            local checkOn = Instance.new("ImageLabel", btn)
+            checkOn.Size = UDim2.new(0,20,0,20); checkOn.Position = UDim2.new(0.02,0,0.5,-10)
+            checkOn.BackgroundTransparency = 1
+            checkOn.Image = "rbxassetid://3926309567" -- check asset
+            checkOn.ImageRectOffset = Vector2.new(784,420)
+            checkOn.ImageRectSize = Vector2.new(48,48)
+            checkOn.ImageTransparency = 1
+            Kavo.Track(btn, "BackgroundColor3", "ElementColor")
+
+            local toggled = false
+            btn.MouseButton1Click:Connect(function()
+                toggled = not toggled
+                if toggled then
+                    tween(checkOn, {ImageTransparency = 0}, 0.12)
+                    checkOn.Rotation = -20
+                    tween(checkOn, {Rotation = 0}, 0.18, Enum.EasingStyle.Back)
+                else
+                    tween(checkOn, {ImageTransparency = 1}, 0.12)
+                end
+                pcall(cb, toggled)
+            end)
+            return {
+                Instance = btn,
+                Set = function(v)
+                    toggled = v
+                    checkOn.ImageTransparency = v and 0 or 1
+                end
+            }
+        end
+
+        -- Slider (value bubble)
+        function elements:NewSlider(name, tip, maxv, minv, cb)
+            name = name or "Slider"
+            maxv = maxv or 100
+            minv = minv or 0
+            cb = cb or function() end
+
+            local holder = Instance.new("Frame", content)
+            holder.Size = UDim2.new(0,720,0,44)
+            holder.BackgroundTransparency = 1
+            local lbl = Instance.new("TextLabel", holder)
+            lbl.Size = UDim2.new(0.35,0,0,18); lbl.Position = UDim2.new(0,6,0,6)
+            lbl.BackgroundTransparency = 1; lbl.Font = Enum.Font.GothamSemibold; lbl.TextSize = 13
+            lbl.Text = name; lbl.TextColor3 = theme.TextColor
+
+            local bar = Instance.new("Frame", holder)
+            bar.Size = UDim2.new(0.62,0,0,8); bar.Position = UDim2.new(0.36,0,0.5,-4)
+            bar.BackgroundColor3 = Color3.fromRGB(40,40,48); bar.BorderSizePixel = 0
+            local bcorner = Instance.new("UICorner", bar); bcorner.CornerRadius = UDim.new(1,0)
+
+            local fill = Instance.new("Frame", bar)
+            fill.Size = UDim2.new(0,0,1,0)
+            fill.BackgroundColor3 = theme.SchemeColor
+            fill.BorderSizePixel = 0
+            local fcorner = Instance.new("UICorner", fill); fcorner.CornerRadius = UDim.new(1,0)
+            local knob = Instance.new("ImageButton", bar)
+            knob.Size = UDim2.new(0,16,0,16); knob.Position = UDim2.new(0, -8, 0.5, -8)
+            knob.BackgroundTransparency = 1; knob.Image = "rbxassetid://3926305904" -- circle asset
+            knob.ImageColor3 = theme.SchemeColor
+            knob.ZIndex = 5
+
+            local valBubble = Instance.new("TextLabel", holder)
+            valBubble.Size = UDim2.new(0, 52, 0, 20); valBubble.BackgroundColor3 = Color3.fromRGB(20,20,28); valBubble.TextColor3 = theme.TextColor
+            valBubble.Position = UDim2.new(0.36, 0, 0, -28); valBubble.Text = tostring(minv)
+            valBubble.Font = Enum.Font.GothamBold; valBubble.TextSize = 12
+            local vcorner = Instance.new("UICorner", valBubble); vcorner.CornerRadius = UDim.new(0,6)
+            valBubble.Visible = false
+
+            local dragging = false
+            local mouse = LocalPlayer:GetMouse()
+            local function setFromMouse()
+                local rel = clamp(mouse.X - bar.AbsolutePosition.X, 0, bar.AbsoluteSize.X)
+                local pct = rel / bar.AbsoluteSize.X
+                fill.Size = UDim2.new(pct,0,1,0)
+                knob.Position = UDim2.new(pct, -8, 0.5, -8)
+                local value = math.floor((maxv - minv) * pct + minv)
+                valBubble.Text = tostring(value)
+                pcall(cb, value)
+            end
+
+            knob.MouseButton1Down:Connect(function()
+                dragging = true
+                valBubble.Visible = true
+                while dragging do
+                    setFromMouse()
+                    wait()
+                end
+                wait(0.12)
+                valBubble.Visible = false
+            end)
+            UserInputService.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                end
+            end)
+            return {
+                Instance = holder,
+                Set = function(v)
+                    local pct = clamp((v - minv)/(maxv - minv), 0, 1)
+                    fill.Size = UDim2.new(pct,0,1,0)
+                    knob.Position = UDim2.new(pct, -8, 0.5, -8)
+                end
+            }
+        end
+
+        -- Textbox with validation
+        function elements:NewTextBoxValidated(name, tip, validator, cb)
+            name = name or "Textbox"
+            validator = validator or function(txt) return true, "" end
+            cb = cb or function() end
+            local holder = Instance.new("Frame", content)
+            holder.Size = UDim2.new(0,720,0,44); holder.BackgroundTransparency = 1
+            local lbl = Instance.new("TextLabel", holder)
+            lbl.Size = UDim2.new(0.3,0,0,18); lbl.Position = UDim2.new(0,6,0,6)
+            lbl.BackgroundTransparency = 1; lbl.Font = Enum.Font.GothamSemibold; lbl.Text = name; lbl.TextColor3 = theme.TextColor
+
+            local box = Instance.new("TextBox", holder)
+            box.Size = UDim2.new(0.6,0,0,26); box.Position = UDim2.new(0.35,0,0.5,-13)
+            box.BackgroundColor3 = theme.ElementColor; box.TextColor3 = theme.SchemeColor; box.Font = Enum.Font.Gotham; box.PlaceholderText = tip or "Type..."
+            box.TextSize = 14; box.ClearTextOnFocus = false
+            local bcorner = Instance.new("UICorner", box)
+            local msg = Instance.new("TextLabel", holder)
+            msg.Size = UDim2.new(0.6,0,0,16); msg.Position = UDim2.new(0.35,0,1,2)
+            msg.BackgroundTransparency = 1; msg.TextColor3 = Color3.fromRGB(255,100,100); msg.Font = Enum.Font.Gotham; msg.TextSize = 12; msg.Text = ""; msg.Visible = false
+
+            box.FocusLost:Connect(function(enter)
+                if not enter then return end
+                local ok, res = pcall(function() return validator(box.Text) end)
+                if ok then
+                    if type(res) == "boolean" then
+                        if res then
+                            pcall(cb, box.Text); box.Text = ""
+                            msg.Visible = false
+                        else
+                            msg.Text = "Invalid input"; msg.Visible = true
+                        end
+                    elseif type(res) == "table" then
+                        if res[1] == true then pcall(cb, box.Text); box.Text = "" ; msg.Visible = false
+                        else msg.Text = tostring(res[2] or "Invalid"); msg.Visible = true end
+                    else
+                        pcall(cb, box.Text); box.Text = ""; msg.Visible = false
+                    end
+                else
+                    msg.Text = "Validation error"; msg.Visible = true
+                end
+                wait(2)
+                msg.Visible = false
+            end)
+            return {
+                Instance = box
+            }
+        end
+
+        -- Searchable dropdown
+        function elements:NewDropdownSearch(name, tip, list, cb)
+            name = name or "Dropdown"
+            list = list or {}
+            cb = cb or function() end
+            local holder = Instance.new("Frame", content)
+            holder.Size = UDim2.new(0,720,0,38)
+            holder.BackgroundTransparency = 1
+            local lbl = Instance.new("TextLabel", holder)
+            lbl.Size = UDim2.new(0.3,0,1,0); lbl.BackgroundTransparency = 1; lbl.Text = name; lbl.Font = Enum.Font.GothamSemibold; lbl.TextColor3 = theme.TextColor
+            local drop = Instance.new("TextButton", holder)
+            drop.Size = UDim2.new(0.65,0,0.9,0); drop.Position = UDim2.new(0.33,0,0.05,0)
+            drop.Text = "Select..."; drop.Font = Enum.Font.Gotham; drop.TextColor3 = theme.TextColor; drop.AutoButtonColor = false
+            drop.BackgroundColor3 = theme.ElementColor
+            local dcorner = Instance.new("UICorner", drop)
+
+            local listFrame = Instance.new("Frame", holder)
+            listFrame.Size = UDim2.new(0.65,0,0,0)
+            listFrame.Position = UDim2.new(0.33,0,1,6)
+            listFrame.ClipsDescendants = true
+            listFrame.BackgroundTransparency = 1
+            local listScroll = Instance.new("ScrollingFrame", listFrame)
+            listScroll.Size = UDim2.new(1,0,1,0); listScroll.CanvasSize = UDim2.new(0,0,0,0); listScroll.BackgroundTransparency = 1
+            listScroll.ScrollBarThickness = 6
+            local layout = Instance.new("UIListLayout", listScroll); layout.Padding = UDim.new(0,4); layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+            -- search box
+            local search = Instance.new("TextBox", listFrame)
+            search.Size = UDim2.new(1,0,0,28); search.Position = UDim2.new(0,0,0,0)
+            search.PlaceholderText = "Search..."; search.ClearTextOnFocus = false
+            search.BackgroundColor3 = theme.ElementColor; search.TextColor3 = theme.TextColor
+
+            local function populate(filter)
+                for i,v in pairs(listScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+                for _,item in ipairs(list) do
+                    if tostring(item):lower():find((filter or ""):lower()) then
+                        local optBtn = Instance.new("TextButton", listScroll)
+                        optBtn.Size = UDim2.new(1, -8, 0, 28)
+                        optBtn.Position = UDim2.new(0,4,0,0)
+                        optBtn.BackgroundColor3 = theme.ElementColor
+                        optBtn.Text = tostring(item)
+                        optBtn.Font = Enum.Font.Gotham
+                        optBtn.TextColor3 = theme.TextColor
+                        optBtn.AutoButtonColor = false
+                        optBtn.MouseButton1Click:Connect(function()
+                            drop.Text = tostring(item)
+                            cb(item)
+                            -- close
+                            tween(listFrame, {Size = UDim2.new(listFrame.Size.X.Scale, listFrame.Size.X.Offset,0,0)}, 0.12)
+                        end)
+                    end
+                end
+                listScroll.CanvasSize = UDim2.new(0,0,0, layout.AbsoluteContentSize.Y + 6)
+            end
+
+            drop.MouseButton1Click:Connect(function()
+                -- open with animation
+                populate("")
+                tween(listFrame, {Size = UDim2.new(listFrame.Size.X.Scale, listFrame.Size.X.Offset,0, math.clamp(#list * 32 + 34, 40, 220))}, 0.18, Enum.EasingStyle.Back)
+            end)
+            search:GetPropertyChangedSignal("Text"):Connect(function() populate(search.Text) end)
+            return {
+                Instance = drop,
+                Set = function(value) drop.Text = tostring(value) end
+            }
+        end
+
+        -- Title banner
+        function elements:NewTitleBanner(text)
+            local frame = Instance.new("Frame", content)
+            frame.Size = UDim2.new(0,760,0,56)
+            frame.BackgroundColor3 = theme.SchemeColor
+            frame.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", frame); corner.CornerRadius = UDim.new(0,8)
+            local lbl = Instance.new("TextLabel", frame)
+            lbl.Size = UDim2.new(1,-16,1,0); lbl.Position = UDim2.new(0,8,0,0)
+            lbl.BackgroundTransparency = 1; lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 18
+            lbl.TextColor3 = theme.TextColor; lbl.Text = "  "..(text or "Title")
+            Kavo.Track(frame, "BackgroundColor3", "SchemeColor")
+            Kavo.Track(lbl, "TextColor3", "TextColor")
+            return frame
+        end
+
+        -- Color Picker (with hex + hue)
+        function elements:NewColorPickerHex(label, tip, default, cb)
+            label = label or "Color"
+            cb = cb or function() end
+            default = default or theme.SchemeColor
+            local holder = Instance.new("Frame", content)
+            holder.Size = UDim2.new(0,720,0,80); holder.BackgroundTransparency = 1
+            local title = Instance.new("TextLabel", holder)
+            title.Size = UDim2.new(0.35,0,0,20); title.Position = UDim2.new(0,6,0,6)
+            title.BackgroundTransparency = 1; title.Font = Enum.Font.GothamSemibold; title.Text = label; title.TextColor3 = theme.TextColor
+
+            local preview = Instance.new("Frame", holder)
+            preview.Size = UDim2.new(0,40,0,40); preview.Position = UDim2.new(0.36,0,0,6)
+            preview.BackgroundColor3 = default; local pcorner = Instance.new("UICorner", preview); pcorner.CornerRadius = UDim.new(0,6)
+            local slider = Instance.new("Frame", holder)
+            slider.Size = UDim2.new(0.45,0,0,12); slider.Position = UDim2.new(0.44,0,0,14)
+            slider.BackgroundColor3 = Color3.fromRGB(28,28,34); local scorner = Instance.new("UICorner", slider); scorner.CornerRadius = UDim.new(1,0)
+            -- hue bar
+            local hueFill = Instance.new("Frame", slider)
+            hueFill.Size = UDim2.new(1,0,1,0); hueFill.BackgroundTransparency = 0; hueFill.BorderSizePixel = 0
+            -- gradient fill rainbow
+            local grad = Instance.new("UIGradient", hueFill)
+            grad.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromHSV(0,1,1)),
+                ColorSequenceKeypoint.new(0.16, Color3.fromHSV(0.16,1,1)),
+                ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33,1,1)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromHSV(0.5,1,1)),
+                ColorSequenceKeypoint.new(0.66, Color3.fromHSV(0.66,1,1)),
+                ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83,1,1)),
+                ColorSequenceKeypoint.new(1, Color3.fromHSV(1,1,1)),
+            })
+            local knob = Instance.new("Frame", slider)
+            knob.Size = UDim2.new(0,12,0,12); knob.Position = UDim2.new(0, -6, 0.5, -6); knob.BackgroundColor3 = Color3.new(1,1,1)
+            local kcorner = Instance.new("UICorner", knob); kcorner.CornerRadius = UDim.new(1,0)
+            -- hex input
+            local hex = Instance.new("TextBox", holder)
+            hex.Size = UDim2.new(0,96,0,26); hex.Position = UDim2.new(0.88,0,0,10)
+            hex.Text = string.format("#%02X%02X%02X", math.floor(default.r*255), math.floor(default.g*255), math.floor(default.b*255))
+            hex.BackgroundColor3 = theme.ElementColor; hex.TextColor3 = theme.TextColor
+
+            local function setColorFromHex(h)
+                h = h:gsub("#","")
+                if #h ~= 6 then return end
+                local r = tonumber(h:sub(1,2),16)
+                local g = tonumber(h:sub(3,4),16)
+                local b = tonumber(h:sub(5,6),16)
+                if not (r and g and b) then return end
+                local c = Color3.fromRGB(r,g,b)
+                preview.BackgroundColor3 = c
+                pcall(cb, c)
+            end
+            hex.FocusLost:Connect(function(enter)
+                if not enter then return end
+                setColorFromHex(hex.Text)
+            end)
+
+            local dragging = false
+            local mouse = LocalPlayer:GetMouse()
+            knob.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                end
+            end)
+            UserInputService.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+            end)
+            RunService.RenderStepped:Connect(function()
+                if dragging then
+                    local rel = clamp(mouse.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+                    local pct = rel / slider.AbsoluteSize.X
+                    knob.Position = UDim2.new(pct, -6, 0.5, -6)
+                    local hsv = Color3.fromHSV(pct, 1, 1)
+                    preview.BackgroundColor3 = hsv
+                    hex.Text = string.format("#%02X%02X%02X", math.floor(hsv.r*255), math.floor(hsv.g*255), math.floor(hsv.b*255))
+                    pcall(cb, hsv)
+                end
+            end)
+            return {
+                Instance = holder,
+                Set = function(c)
+                    preview.BackgroundColor3 = c
+                    hex.Text = string.format("#%02X%02X%02X", math.floor(c.r*255), math.floor(c.g*255), math.floor(c.b*255))
+                end
+            }
+        end
+
+        -- Keybind (PC-only)
+        function elements:NewKeybindPC(name, tip, defaultKey, cb)
+            if not isPC() then
+                local lab = Instance.new("TextLabel", content)
+                lab.Size = UDim2.new(0,720,0,36); lab.BackgroundTransparency = 1
+                lab.Font = Enum.Font.Gotham; lab.TextSize = 14; lab.Text = name.." (PC only)"
+                lab.TextColor3 = theme.TextColor
+                return lab
+            end
+            name = name or "Keybind"
+            cb = cb or function() end
+            local holder = Instance.new("Frame", content)
+            holder.Size = UDim2.new(0,720,0,36); holder.BackgroundTransparency = 1
+            local lbl = Instance.new("TextLabel", holder)
+            lbl.Size = UDim2.new(0.5,0,1,0); lbl.BackgroundTransparency = 1; lbl.Text = name; lbl.Font = Enum.Font.GothamSemibold; lbl.TextColor3 = theme.TextColor
+            local keyBtn = Instance.new("TextButton", holder)
+            keyBtn.Size = UDim2.new(0.2,0,0.7,0); keyBtn.Position = UDim2.new(0.7,0,0.15,0)
+            keyBtn.Text = tostring(defaultKey or "RightShift"); keyBtn.BackgroundColor3 = theme.ElementColor; keyBtn.Font = Enum.Font.GothamBold; keyBtn.TextColor3 = theme.TextColor
+            keyBtn.AutoButtonColor = false
+            local waiting = false
+            keyBtn.MouseButton1Click:Connect(function()
+                if waiting then return end
+                keyBtn.Text = "Press Key..."
+                waiting = true
+                local conn
+                conn = UserInputService.InputBegan:Connect(function(input, processed)
+                    if not processed and input.UserInputType == Enum.UserInputType.Keyboard then
+                        local key = input.KeyCode
+                        keyBtn.Text = tostring(key.Name)
+                        pcall(cb, key)
+                        waiting = false
+                        conn:Disconnect()
+                    end
+                end)
+            end)
+            return {
+                Instance = holder
+            }
+        end
+
+        return elements
+    end
+
+    return {
+        Button = btn,
+        Page = page,
+        Sections = Sections
+    }
+end
+
+-- Expose Tabs creator
+Kavo.Tabs = Tabs
+
+-- NOTIFICATIONS
+function Kavo:Notify(title, text, duration, style)
+    duration = duration or 3
+    style = style or "info"
+    local bg = Instance.new("Frame", notifContainer)
+    bg.Size = UDim2.new(1,0,0,0)
+    bg.Position = UDim2.new(0,0,1,0)
+    bg.BackgroundColor3 = style == "success" and Color3.fromRGB(60,170,100) or style=="error" and Color3.fromRGB(215,60,60) or theme.SchemeColor
+    bg.BorderSizePixel = 0
+    bg.ClipsDescendants = true
+    local bcorner = Instance.new("UICorner", bg); bcorner.CornerRadius = UDim.new(0,8)
+    local t = Instance.new("TextLabel", bg); t.Position = UDim2.new(0,10,0,6); t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBold; t.Text = title; t.TextSize = 14; t.TextColor3 = Color3.new(1,1,1)
+    local s = Instance.new("TextLabel", bg); s.Position = UDim2.new(0,10,0,26); s.BackgroundTransparency = 1; s.Font = Enum.Font.Gotham; s.TextSize = 12; s.Text = text; s.TextColor3 = Color3.fromRGB(245,245,245)
+    -- animate in
+    local total = #notifContainer:GetChildren()
+    tween(bg, {Size = UDim2.new(1,0,0,72)}, 0.18, Enum.EasingStyle.Back)
+    tween(bg, {Position = UDim2.new(0,0,1,-(76*total))}, 0.18)
+    spawn(function()
+        wait(duration)
+        tween(bg, {BackgroundTransparency = 1}, 0.12)
+        wait(0.12)
+        if bg and bg.Parent then bg:Destroy() end
+    end)
+end
+
+-- UI Toggle binding
+function Kavo:BindToggleKey(key)
+    if not key then return end
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == key then
+            screenGui.Enabled = not screenGui.Enabled
+        end
+    end)
+end
+
+-- Drag smoothing (single main window)
+do
+    local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+    local inertia = 0.12
+    main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragInput = input
+            dragStart = input.Position
+            startPos = main.Position
+        end
+    end)
+    main.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            -- handled in render stepped
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input == dragInput then
+            dragging = false
+        end
+    end)
+    RunService.RenderStepped:Connect(function()
+        if dragging and dragInput then
+            local delta = UserInputService:GetMouseLocation() - dragStart
+            local target = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            main.Position = main.Position:Lerp(target, inertia)
+        end
+    end)
+end
+
+-- HOT RELOAD (change theme live)
+function Kavo:HotReloadTheme(nameOrTable)
+    if type(nameOrTable) == "string" and themeStyles[nameOrTable] then
+        theme = themeStyles[nameOrTable]
+        settings.Theme = nameOrTable
+    elseif type(nameOrTable) == "table" then
+        theme = nameOrTable
+        settings.Theme = "Custom"
+    end
+    saveSettings()
+end
+
+-- Expose change color quick
+function Kavo:ChangeColor(key, color3)
+    if theme[key] ~= nil then
+        theme[key] = color3
+    end
+end
+
+-- Toggle UI
+function Kavo:ToggleUI()
+    screenGui.Enabled = not screenGui.Enabled
+end
+
+-- Save / Load API
+function Kavo:Save(tbl) settings = tbl or settings; saveSettings() end
+function Kavo:Load() loadSettings(); return settings end
+
+-- API for creation
+Kavo.CreateTab = function(name, icon)
+    return Tabs:New(name, icon)
+end
+
+-- BINDINGS: default right shift toggle
+Kavo:BindToggleKey(Enum.KeyCode.RightShift)
+
+-- Hot-load settings theme if present
+if settings.Theme then
+    safeCall(function() Kavo:HotReloadTheme(settings.Theme) end)
+end
+
+-- DEMO: Add sample tabs and sample content (you can remove this when integrating)
+local home = Kavo.CreateTab("Home", "rbxassetid://4560909609")
+local settingsTab = Kavo.CreateTab("Settings", "rbxassetid://4560909609")
+local tools = Kavo.CreateTab("Tools", "rbxassetid://4560909609")
+
+-- Home content
+local homeSec = home.Sections:NewSection("Welcome")
+homeSec.Parent = home.Page
+homeSec = home.Sections:NewSection("Quick Actions")
+local e = homeSec
+local el = e
+local elems = e
+local elements = e
+local s = e
+
+local secElems = e
+local elemAPI = e
+
+-- Use the returned Elements API to add entries
+local api = e
+
+-- Create some demo elements
+local demoButton = e.NewButton and e:NewButton("Demo Button", "Click me", nil, function() Kavo:Notify("Hello","You clicked demo button",2,"info") end)
+local demoToggle = e.NewToggle and e:NewToggle("Check me", "Sample toggle", function(t) Kavo:Notify("Toggle","State: "..tostring(t),1,"info") end)
+local demoSlider = e.NewSlider and e:NewSlider("Volume", "Adjust", 100, 0, function(v) footerLabel.Text = "Volume: "..v end)
+local demoText = e.NewTextBoxValidated and e:NewTextBoxValidated("Username","Enter name", function(txt) if #txt >= 3 then return true else return false, "Min 3 chars" end end, function(val) Kavo:Notify("Saved","Username: "..val,2,"success") end)
+local demoDrop = e.NewDropdownSearch and e:NewDropdownSearch("Choose", "Pick item", {"Apple","Banana","Carrot","Durian","Elderberry"}, function(v) Kavo:Notify("Picked", v, 1.8, "info") end)
+local demoColor = e.NewColorPickerHex and e:NewColorPickerHex("Accent", "Pick accent", theme.SchemeColor, function(c) Kavo:HotReloadColors = Kavo.HotReloadColors end)
+local demoKey = e.NewKeybindPC and e:NewKeybindPC("Open", "Press key", Enum.KeyCode.F, function(k) Kavo:Notify("Bound","Key: "..tostring(k.Name),1.8,"info") end)
+
+-- End demo (the real user will create tabs/sections/elements using the API above)
+-- Example usage by developer:
+-- local myTab = Kavo.CreateTab("MyTab"); local s = myTab.Sections:NewSection("My Section"); s:NewButton(...)
+
+-- Final note: library table
+Kavo._ScreenGui = screenGui
+Kavo._Theme = theme
+Kavo._Settings = settings
+Kavo._Main = main
+
+-- Provide a global reference just in case
+_G.KavoV2 = Kavo
+
+print("Kavo V2 loaded — use _G.KavoV2 to access API")
+
+-- Usage examples:
+-- _G.KavoV2:Notify("Hi","This is a test",2,"success")
+-- local t = _G.KavoV2:CreateTab("Extra")
+-- local s = t.Sections:NewSection("Example")
+-- s:NewButton("Test", "Tip", nil, function() print("clicked") end)
